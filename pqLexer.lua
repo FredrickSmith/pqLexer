@@ -136,8 +136,10 @@ _pq._t= {
 
 _pq.number_pattern = {
 	'%d+'                   , -- 1
+	'%.%d+'                 , --  .1
 	'%d+%.%d+'              , -- 1.1
-	'%d+%.%d*[eE][%-%+]?%d+', -- 1.1[eE][-+]1 -- is E allowed???
+	'%.%d*[eE][%-%+]?%d+'   , --  .1[eE][-+]1
+	'%d+%.%d*[eE][%-%+]?%d+', -- 1.1[eE][-+]1
 	'0x[%x]+'               , -- 0x1
 }
 
@@ -230,7 +232,9 @@ function pq:lex (txt)
 			local tkn = self:lookaheaduntil (_c, 1,
 				function (c, pos) if not _pq._t.whitespace [c] then return -1 end end)
 
-			-- print ('whitespace', _c, #tkn)
+			local pp = not tkn:find ' ' and 'T' or not tkn:find '	' and 'S' or 'C'
+
+			print (self.pos, 'WS', pp, #tkn)
 			goto found
 		end
 
@@ -265,13 +269,13 @@ function pq:lex (txt)
 							function (c, pos) if c..self:lookahead (pos + 1) == ']]' then return 1 end end)
 					end
 
-					print ('multi-line comment', content)
+					print (self.pos, 'ML-C', content)
 					goto found
 				else -- --
 					local content = self:lookaheaduntil ('', 1,
 						function (c, pos) if c == '\n' or c == '' then return -1 end end)
 
-					print ('singleline comment ', content)
+					print (self.pos, 'SL-C', content)
 					goto found
 				end
 			end
@@ -280,7 +284,7 @@ function pq:lex (txt)
 				local content = self:lookaheaduntil ('', 1, 
 					function (c, pos) if c == '\n' or c == '' then return -1 end end)
 
-				print ('singleline comment', content)
+				print (self.pos, 'SL-C', content)
 				goto found
 			end
 
@@ -288,7 +292,7 @@ function pq:lex (txt)
 				local content = self:lookaheaduntil ('', 1, 
 					function (c, pos) if c..self:lookahead (pos + 1) == '*/' then return 1 end end)
 
-				print ('multi-line comment', content)
+				print (self.pos, 'ML-C', content)
 				goto found
 			end
 
@@ -313,7 +317,7 @@ function pq:lex (txt)
 						end
 					end)
 
-				print ('singleline string', content)
+				print (self.pos, 'SL-S', content)
 				goto found
 			end
 
@@ -340,7 +344,7 @@ function pq:lex (txt)
 						function (c, pos) if c..self:lookahead (pos + 1) == ']]' then return 1 end end)
 				end
 
-				print ('multiline string', content)
+				print (self.pos, 'ML-S', content)
 				goto found
 			end
 
@@ -353,7 +357,7 @@ function pq:lex (txt)
 			not _pq._t.comment_end_symbols   [_c] and
 			not _pq._t.string_symbols        [_c] and
 			not _pq._t.whitespace            [_c] and
-			not _pq._t.other_symbols         [_c] then
+			not _pq._t.other_symbols         [_c] and _c ~= ',' then
 
 			local tkn = self:lookaheaduntil (_c, 1,
 				function (c, pos)
@@ -364,22 +368,28 @@ function pq:lex (txt)
 						_pq._t.comment_end_symbols   [c] or
 						_pq._t.string_symbols        [c] or
 						_pq._t.whitespace            [c] or
-						_pq._t.other_symbols         [c] or c == '' then -- eof
+						_pq._t.other_symbols         [c] or c == '' or c == ',' then -- eof, fk commas
 						return -1
 					end
 				end)
 
 			-- print ('token', tkn, string.byte (tkn))
-			print ('token', tkn)
+			print (self.pos, 'TK', tkn)
 			goto found
 		end
 
-		print ('nohome', _c)
+		print (self.pos, 'NH', _c)
 
 		::found::
 		self.pos = self.pos + 1
 		::skip::
 	end
+
+	return self.buffer
+end
+
+function pq:pretty (buffer)
+
 end
 
 --[= []]
@@ -401,6 +411,8 @@ end
 -- pq:lex [[local a = '\\\\\\\\' --'--lol]] local a = '\\\\\\\\' --'--lol
 -- pq:lex 'local a = \'a\' --[[lol]] --|a|'
 
+-- pq:lex 'local	a, b 	= \'a\', [[b]] --[[c]] -- d'
+
 local r = function (a)
           a = assert (io.open (a, 'rb'))
 	local b = a:read '*a'
@@ -408,4 +420,6 @@ local r = function (a)
 	return b
 end
 
--- pq:lex (r 'pqLexer.lua')
+-- pq:lex (r 'lex/lex_test_1.lua')
+-- pq:lex (r 'lex/lex_test_2.lua')
+-- pq:lex (r 'lex/lex_test_3.lua')
